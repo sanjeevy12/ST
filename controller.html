@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Stranger Lights — Editor (Fixed)</title>
+<title>Stranger Lights — Controller</title>
 <style>
   :root{ --led:#ff3b3b; --cell-size:44px; }
   html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;background:#070809;color:#eee}
@@ -19,18 +19,35 @@
   .panel{margin-top:12px}
   button,input,select{padding:8px;border-radius:6px;border:0}
   .small{font-size:13px;color:#cbd}
+  nav{display:flex;gap:12px;justify-content:center;padding:8px 0;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:14px}
+  nav a{color:#cde;text-decoration:none}
+  nav a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
+
+<nav>
+  <a href="./index.html">Viewer</a>
+  <a href="./controller.html">Controller</a>
+</nav>
+
 <div class="wrap">
   <div class="header">
-    <h2>Stranger Lights — Editor (Fixed)</h2>
+    <h2>Stranger Lights — Controller</h2>
     <div class="controls">
       <label class="small">Mode
-        <select id="mode"><option value="all">All</option><option value="rand">Random</option><option value="word">Word</option></select>
+        <select id="mode">
+          <option value="all">All</option>
+          <option value="rand">Random</option>
+          <option value="word">Word</option>
+        </select>
       </label>
-      <label class="small">Speed <input id="speed" type="number" value="300" min="20" style="width:90px"></label>
-      <label class="small">Color <input id="color" type="color" value="#ff3b3b"></label>
+      <label class="small">Speed
+        <input id="speed" type="number" value="300" min="20" style="width:90px">
+      </label>
+      <label class="small">Color
+        <input id="color" type="color" value="#ff3b3b">
+      </label>
       <button id="toggleEdit">Enter Edit</button>
       <button id="savePos">Save</button>
     </div>
@@ -46,7 +63,7 @@
       <button id="startBtn">Start</button>
       <button id="stopBtn">Stop</button>
     </div>
-    <p class="small">Open viewer.html in another tab to watch live. Check Console for debug logs.</p>
+    <p class="small">Open <b>index.html</b> (Viewer) in another tab to watch live. Check Console for debug logs.</p>
   </div>
 </div>
 
@@ -67,11 +84,9 @@ const stopBtn = document.getElementById('stopBtn');
 const wordEl = document.getElementById('word');
 
 let positions = null;        // array of {x, y}
-let hotspotEls = [];        // DOM nodes
+let hotspotEls = [];         // DOM nodes
 let editMode = false;
-let dragging = null;        // {el, idx}
-let loopTimer = null;
-let step = 0;
+let dragging = null;         // {el, idx}
 
 /* --- Utilities --- */
 function defaultPositions(){
@@ -87,7 +102,14 @@ function defaultPositions(){
 function loadPositions(){
   try{
     const raw = localStorage.getItem(STORAGE_POS);
-    if(raw){ const p = JSON.parse(raw); if(Array.isArray(p) && p.length===26) { positions = p; console.log('Loaded positions from storage'); return; } }
+    if(raw){
+      const p = JSON.parse(raw);
+      if(Array.isArray(p) && p.length===26){
+        positions = p;
+        console.log('Loaded positions from storage');
+        return;
+      }
+    }
   }catch(e){ console.warn('pos load err', e); }
   positions = defaultPositions();
   console.log('Using default positions');
@@ -95,7 +117,6 @@ function loadPositions(){
 
 /* --- Create hotspots and attach listeners (re-usable) --- */
 function createHotspots(){
-  // remove existing
   hotspotEls.forEach(h=>h.remove());
   hotspotEls = [];
   for(let i=0;i<26;i++){
@@ -103,11 +124,9 @@ function createHotspots(){
     el.className = 'hotspot';
     el.dataset.i = i;
     el.innerHTML = `<div class="lbl">${letters[i]}</div>`;
-    // place
     const p = positions[i] || {x:5,y:5};
     el.style.left = p.x + '%';
     el.style.top  = p.y + '%';
-    // events
     el.addEventListener('pointerdown', onPointerDown);
     el.addEventListener('click', onHotspotClick);
     imageWrap.appendChild(el);
@@ -136,16 +155,15 @@ function setEdit(on){
 toggleEditBtn.addEventListener('click', ()=> setEdit(!editMode));
 
 /* --- Drag & drop / click-to-place --- */
+let selectedForPlace = null;
+
 function onHotspotClick(e){
   if(!editMode) return;
   const idx = +e.currentTarget.dataset.i;
-  // select for click-to-place
   selectedForPlace = idx;
   hotspotEls.forEach((h,i)=> h.querySelector('.lbl').style.display = (i===idx)?'block':'none');
   console.log('Selected hotspot for click-to-place:', idx);
 }
-
-let selectedForPlace = null;
 
 function onPointerDown(e){
   if(!editMode) return;
@@ -168,7 +186,7 @@ function onPointerMove(e){
   positions[dragging.idx] = { x, y };
 }
 
-function onPointerUp(e){
+function onPointerUp(){
   if(!dragging) return;
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
@@ -176,7 +194,7 @@ function onPointerUp(e){
   dragging = null;
 }
 
-/* click-to-place image */
+/* click-to-place on image */
 imageWrap.addEventListener('click', function(e){
   if(!editMode || selectedForPlace === null) return;
   const rect = bg.getBoundingClientRect();
@@ -193,7 +211,6 @@ imageWrap.addEventListener('click', function(e){
 
 /* --- Save positions --- */
 savePosBtn.addEventListener('click', ()=>{
-  // read back from DOM to be safe
   hotspotEls.forEach((h,i)=> {
     positions[i] = { x: parseFloat(h.style.left||'0'), y: parseFloat(h.style.top||'0') };
   });
@@ -207,16 +224,18 @@ const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('st-lights') : 
 function broadcastState(state){
   state.timestamp = Date.now();
   try{ if(bc) bc.postMessage(state); } catch(e){ console.warn('bc post failed',e); }
-  try{ localStorage.setItem(STORAGE_STATE, JSON.stringify(state)); localStorage.setItem('st_last_update', Date.now()); } catch(e){}
+  try{
+    localStorage.setItem(STORAGE_STATE, JSON.stringify(state));
+    localStorage.setItem('st_last_update', Date.now());
+  }catch(e){}
   console.log('Broadcasted state', state);
 }
 
-/* --- Simple animation helpers for preview --- */
+/* --- Preview helpers --- */
 function clearAll(){ hotspotEls.forEach(h => { h.classList.remove('on'); h.style.filter='none'; }) }
 function setIndex(i){ clearAll(); if(i>=0 && i<26) hotspotEls[i].classList.add('on'); }
 function applyMask(mask){ clearAll(); for(let i=0;i<26;i++) if(mask & (1<<i)) hotspotEls[i].classList.add('on'); }
 
-/* gentle flicker */
 let flickInt = null;
 function startFlicker(intensity){
   stopFlicker();
@@ -232,7 +251,7 @@ function startFlicker(intensity){
 }
 function stopFlicker(){ if(flickInt) clearInterval(flickInt); flickInt=null; hotspotEls.forEach(h=> h.style.filter='none'); }
 
-/* --- Controller loop (very simple) --- */
+/* --- Controller loop --- */
 let running = false;
 async function controllerLoop(){
   if(running) return;
@@ -242,24 +261,36 @@ async function controllerLoop(){
     const speed = Math.max(20, Number(speedEl.value||300));
     const color = colorEl.value;
     const word = (wordEl.value||'').toUpperCase().replace(/[^A-Z ]/g,'');
+
     if(mode === 'all'){
       const on = Math.floor(Date.now()/speed) % 2 === 0;
-      if(on){ applyMask((1<<26)-1); broadcastState({ mode:'all', speed, mask: (1<<26)-1, color }); }
-      else clearAll();
+      if(on){
+        applyMask((1<<26)-1);
+        broadcastState({ mode:'all', speed, mask: (1<<26)-1, color });
+      } else {
+        clearAll();
+      }
       startFlicker(30);
       await new Promise(r => setTimeout(r, speed));
       continue;
     }
+
     if(mode === 'rand'){
       let mask = 0;
       for(let i=0;i<26;i++) if(Math.random() < 0.35) mask |= (1<<i);
-      applyMask(mask); broadcastState({ mode:'rand', speed, mask, color });
+      applyMask(mask);
+      broadcastState({ mode:'rand', speed, mask, color });
       startFlicker(30);
       await new Promise(r => setTimeout(r, speed));
       continue;
     }
+
     if(mode === 'word'){
-      if(!word){ clearAll(); await new Promise(r=>setTimeout(r,speed)); continue; }
+      if(!word){
+        clearAll();
+        await new Promise(r=>setTimeout(r,speed));
+        continue;
+      }
       const words = word.split(/\s+/).filter(Boolean);
       for(const w of words){
         const wordColor = '#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');
@@ -273,12 +304,13 @@ async function controllerLoop(){
           await new Promise(r=>setTimeout(r, speed));
           if(!running) break;
         }
-        clearAll(); await new Promise(r=>setTimeout(r, speed/2));
+        clearAll();
+        await new Promise(r=>setTimeout(r, speed/2));
         if(!running) break;
       }
       continue;
     }
-    // default wait
+
     await new Promise(r => setTimeout(r, 200));
   }
 }
@@ -289,8 +321,8 @@ stopBtn.addEventListener('click', ()=> { running=false; stopFlicker(); clearAll(
 loadPositions();
 createHotspots();
 applyColor(colorEl.value);
-console.log('Editor ready — hotspots created:', hotspotEls.length);
-window.__editor = { positions, hotspotEls }; // debug handle
+console.log('Editor/Controller ready — hotspots created:', hotspotEls.length);
+window.__editor = { positions, hotspotEls };
 </script>
 </body>
 </html>

@@ -18,10 +18,19 @@
   .hotspot.on{ background:var(--led); box-shadow:0 16px 42px var(--glow, rgba(255,59,59,0.2)); transform:translate(-50%,-50%) scale(1.04) }
   .status{display:flex;gap:12px;justify-content:center;margin-top:8px;color:#99b;font-size:13px}
   .controls{display:flex;gap:8px;justify-content:center;margin-top:6px}
+  nav{display:flex;gap:12px;justify-content:center;padding:8px 0;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:14px}
+  nav a{color:#cde;text-decoration:none}
+  nav a:hover{text-decoration:underline}
   @media (max-width:940px){ :root{--cell-size:42px} }
 </style>
 </head>
 <body>
+
+<nav>
+  <a href="./index.html">Viewer</a>
+  <a href="./controller.html">Controller</a>
+</nav>
+
 <div class="wrap">
   <header>
     <h1>Stranger Lights — Viewer</h1>
@@ -31,7 +40,10 @@
     </div>
   </header>
 
-  <div class="status"><div id="modeText">Mode: —</div><div id="wordText">Word: —</div></div>
+  <div class="status">
+    <div id="modeText">Mode: —</div>
+    <div id="wordText">Word: —</div>
+  </div>
 
   <div class="image-wrap" id="imageWrap">
     <img id="bg" class="bg" src="wall-bg.png" alt="wall-bg.png">
@@ -46,8 +58,17 @@ const modeText = document.getElementById('modeText'), wordText = document.getEle
 
 let positions = [];
 function loadPositions(){
-  try{ const p = JSON.parse(localStorage.getItem(STORAGE_POS)); if(Array.isArray(p) && p.length===26){ positions=p; return; } }catch(e){}
-  const rows=[8,9,9], y=[20,44,68]; const out=[]; for(let r=0;r<rows.length;r++){ for(let i=0;i<rows[r];i++){ out.push({x: +( ((i+1)/(rows[r]+1))*100 ).toFixed(2), y: y[r]}); } } positions=out;
+  try{
+    const p = JSON.parse(localStorage.getItem(STORAGE_POS));
+    if(Array.isArray(p) && p.length===26){ positions=p; return; }
+  }catch(e){}
+  const rows=[8,9,9], y=[20,44,68]; const out=[];
+  for(let r=0;r<rows.length;r++){
+    for(let i=0;i<rows[r];i++){
+      out.push({x: +( ((i+1)/(rows[r]+1))*100 ).toFixed(2), y: y[r]});
+    }
+  }
+  positions=out;
 }
 loadPositions();
 
@@ -97,7 +118,10 @@ setInterval(()=> {
     if(!raw) return;
     const s = JSON.parse(raw);
     if(!s) return;
-    if(s.timestamp && s.timestamp > lastSeen){ lastSeen = s.timestamp; handleState(s); }
+    if(s.timestamp && s.timestamp > lastSeen){
+      lastSeen = s.timestamp;
+      handleState(s);
+    }
   }catch(e){}
 }, 300);
 
@@ -105,17 +129,36 @@ setInterval(()=> {
 function handleState(s){
   modeText.textContent = 'Mode: ' + (s.mode || s.mode === 0 ? s.mode : s.mode);
   wordText.textContent = 'Word: ' + (s.word || '—');
-  // If color provided, use it
-  if(s.color){ document.documentElement.style.setProperty('--led', s.color); hotspotEls.forEach(h => h.style.setProperty('--glow', s.color + '33')); }
-  if(typeof s.mask !== 'undefined' && s.mask !== null){ applyMask(Number(s.mask)); startFlicker(s.flicker || s.speed || 30); return; }
-  if(typeof s.currentIndex !== 'undefined' && s.currentIndex !== null){ if(s.currentIndex>=0) setIndex(Number(s.currentIndex)); else clearAll(); startFlicker(s.flicker || s.speed || 30); return; }
+  if(s.color){
+    document.documentElement.style.setProperty('--led', s.color);
+    hotspotEls.forEach(h => h.style.setProperty('--glow', s.color + '33'));
+  }
+  if(typeof s.mask !== 'undefined' && s.mask !== null){
+    applyMask(Number(s.mask));
+    startFlicker(s.flicker || s.speed || 30);
+    return;
+  }
+  if(typeof s.currentIndex !== 'undefined' && s.currentIndex !== null){
+    if(s.currentIndex>=0) setIndex(Number(s.currentIndex)); else clearAll();
+    startFlicker(s.flicker || s.speed || 30);
+    return;
+  }
 }
 
 /* UI helpers */
 document.getElementById('toggleMarkers').addEventListener('click', ()=>{
-  hotspotEls.forEach(h=> { const l = h.querySelector('.lbl'); l.style.display = (l.style.display === 'block') ? 'none' : 'block'; } );
+  hotspotEls.forEach(h=> {
+    const l = h.querySelector('.lbl');
+    l.style.display = (l.style.display === 'block') ? 'none' : 'block';
+  });
 });
-document.getElementById('reloadPos').addEventListener('click', ()=>{ loadPositions(); hotspotEls.forEach((h,i)=>{ const p=positions[i]||{x:5,y:5}; h.style.left=p.x+'%'; h.style.top=p.y+'%'; }); });
+document.getElementById('reloadPos').addEventListener('click', ()=>{
+  loadPositions();
+  hotspotEls.forEach((h,i)=>{
+    const p=positions[i]||{x:5,y:5};
+    h.style.left=p.x+'%'; h.style.top=p.y+'%';
+  });
+});
 
 /* init */
 document.documentElement.style.setProperty('--led', '#ff3b3b');
