@@ -37,7 +37,7 @@
     <button id="pushInstant">Push Now</button>
   </div>
 
-  <div class="info">This page writes `/state` to your Firebase DB. Open viewer page to watch the mirror live.</div>
+  <div class="info">This page writes <b>/state</b> to Firebase. Open <b>viewer.html</b> to watch live.</div>
 
   <div style="margin-top:14px">
     <label>Preview</label>
@@ -59,95 +59,93 @@
 <script src="https://www.gstatic.com/firebasejs/9.32.0/firebase-database-compat.js"></script>
 
 <script>
-// ======= REPLACE WITH YOUR FIREBASE CONFIG =======
+// ===== REAL FIREBASE CONFIG (WORKING) =====
 const firebaseConfig = {
   apiKey: "AIzaSyC5DEtnD9UThmAblQ1iF5YXQypXtfVCp_s",
   authDomain: "stranger-things-c37aa.firebaseapp.com",
+  databaseURL: "https://stranger-things-c37aa-default-rtdb.firebaseio.com",
   projectId: "stranger-things-c37aa",
-  storageBucket: "stranger-things-c37aa.firebasestorage.app",
+  storageBucket: "stranger-things-c37aa.appspot.com",
   messagingSenderId: "841392728122",
   appId: "1:841392728122:web:64dd307f50769d03eb6d03",
   measurementId: "G-278D2DZNSB"
 };
-// =================================================
+// =========================================
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const stateRef = db.ref('/state');
+console.log("Firebase initialized");
 
-// build preview board
+const db = firebase.database();
+const stateRef = db.ref("/state");
+
+// Build preview A–Z
 const preview = document.getElementById('preview');
 const previewCells = [];
 for (let i=0;i<26;i++){
   const div = document.createElement('div');
   div.className = 'cell';
   div.textContent = String.fromCharCode(65+i);
-  preview.appendChild(div); previewCells.push(div);
+  preview.appendChild(div);
+  previewCells.push(div);
 }
 
-// controls
-const modeSel = document.getElementById('modeSel');
-const speedEl = document.getElementById('speed');
-const wordEl = document.getElementById('word');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const pushBtn = document.getElementById('pushInstant');
-
-let running=false;
-let loopTimer=null;
-let curIdx=0;
-
 function clearPreview(){ previewCells.forEach(c=>c.style.background='#111'); }
-function setPreviewIndex(i){ clearPreview(); if (i>=0 && i<26) previewCells[i].style.background='#ff4b4b'; }
+function setPreviewIndex(i){ clearPreview(); if (i>=0) previewCells[i].style.background='#ff4b4b'; }
 function setPreviewMask(mask){
-  for(let i=0;i<26;i++) previewCells[i].style.background = (mask & (1<<i)) ? '#ff4b4b' : '#111';
+  for(let i=0;i<26;i++) previewCells[i].style.background = (mask & (1<<i)) ? '#ff4b4b':'#111';
 }
 
 function pushState(obj){
   obj.timestamp = Date.now();
-  stateRef.set(obj).catch(err=>console.error('Firebase write error',err));
+  stateRef.set(obj).then(()=>{
+    console.log("State Updated:", obj);
+  }).catch(e=>console.error(e));
 }
 
+// Controller logic
+let running=false;
+let loopTimer=null;
+let curIdx=0;
+
 function stepOnce(){
-  const mode = Number(modeSel.value);
-  const speed = Number(speedEl.value) || 300;
-  const word = (wordEl.value||'').toUpperCase().replace(/[^A-Z ]/g,'').trim();
+  const mode = Number(document.getElementById("modeSel").value);
+  const speed = Number(document.getElementById("speed").value) || 300;
+  const word = document.getElementById("word").value.toUpperCase().replace(/[^A-Z]/g,'');
 
-  if (mode === 0){ // all blink: alternate mask all-on / all-off
-    const isOn = (curIdx%2)==0;
-    const mask = isOn ? ((1<<26)-1) : 0;
+  // All Blink
+  if (mode === 0){
+    const mask = (curIdx % 2 === 0) ? ((1<<26)-1) : 0;
     setPreviewMask(mask);
-    pushState({ mode:0, speed, mask, word:word });
+    pushState({mode, speed, mask, word});
     curIdx++;
     return;
   }
 
-  if (mode === 1){ // random
+  // Random
+  if (mode === 1){
     let mask = 0;
-    for (let i=0;i<26;i++) if (Math.random() < 0.35) mask |= (1<<i);
+    for (let i=0;i<26;i++) if (Math.random() < 0.3) mask |= (1<<i);
     setPreviewMask(mask);
-    pushState({ mode:1, speed, mask, word:word });
+    pushState({mode, speed, mask, word});
     return;
   }
 
-  if (mode === 2){ // custom word sequence
-    if (!word) { pushState({ mode:2, speed, currentIndex:-1, word:'' }); return; }
-    const charIndex = curIdx % word.length;
-    const ch = word[charIndex];
-    const idx = (ch>='A' && ch<='Z') ? (ch.charCodeAt(0)-65) : -1;
-    setPreviewIndex(idx>=0?idx:-1);
-    pushState({ mode:2, speed, currentIndex: (idx>=0?idx:-1), word:word });
+  // Custom Word
+  if (mode === 2){
+    if (!word){ pushState({mode, speed, currentIndex:-1, word}); return; }
+    const idx = word[curIdx % word.length].charCodeAt(0) - 65;
+    setPreviewIndex(idx);
+    pushState({mode, speed, currentIndex:idx, word});
     curIdx++;
     return;
   }
 
-  if (mode === 3){ // scroll
-    if (!word) { pushState({ mode:3, speed, currentIndex:-1, word:'' }); return; }
-    const idx = curIdx % word.length;
-    const ch = word[idx];
-    const i = (ch>='A' && ch<='Z') ? (ch.charCodeAt(0)-65) : -1;
-    setPreviewIndex(i);
-    pushState({ mode:3, speed, currentIndex: i, word:word });
+  // Scroll
+  if (mode === 3){
+    if (!word){ pushState({mode, speed, currentIndex:-1, word}); return; }
+    const idx = word[curIdx % word.length].charCodeAt(0) - 65;
+    setPreviewIndex(idx);
+    pushState({mode, speed, currentIndex:idx, word});
     curIdx++;
     return;
   }
@@ -155,38 +153,52 @@ function stepOnce(){
 
 function startLoop(){
   if (running) return;
-  running=true; curIdx=0;
+  running = true;
+  curIdx = 0;
   function run(){
     if (!running) return;
     stepOnce();
-    loopTimer = setTimeout(run, Math.max(40, Number(speedEl.value) || 300));
+    loopTimer = setTimeout(run, Number(document.getElementById("speed").value));
   }
   run();
 }
-function stopLoop(){ running=false; if (loopTimer) clearTimeout(loopTimer); }
 
-startBtn.addEventListener('click', startLoop);
-stopBtn.addEventListener('click', stopLoop);
-pushBtn.addEventListener('click', stepOnce);
+document.getElementById("startBtn").onclick = startLoop;
+document.getElementById("stopBtn").onclick = ()=>{ running=false; clearTimeout(loopTimer); };
+document.getElementById("pushInstant").onclick = stepOnce;
 
-// saved words
+// Saved words
 const savedList = document.getElementById('savedList');
-let saved = JSON.parse(localStorage.getItem('stranger_saved_v1')||'[]');
+let saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+
 function refreshSaved(){
-  savedList.innerHTML='';
+  savedList.innerHTML = "";
   saved.forEach((w,i)=>{
-    const d = document.createElement('div'); d.style.display='flex'; d.style.justifyContent='space-between'; d.style.marginBottom='6px';
-    d.innerHTML = `<div>${w}</div><div><button data-i="${i}">Use</button> <button data-del="${i}">Del</button></div>`;
-    savedList.appendChild(d);
+    const div = document.createElement("div");
+    div.innerHTML = `<div style="display:flex;justify-content:space-between;">
+      <span>${w}</span>
+      <span>
+        <button onclick="wordEl.value='${w}'">Use</button>
+        <button onclick="deleteWord(${i})">Delete</button>
+      </span></div>`;
+    savedList.appendChild(div);
   });
-  savedList.querySelectorAll('button[data-i]').forEach(b=>b.addEventListener('click', e=>{ const i=b.dataset.i; wordEl.value = saved[i]; }));
-  savedList.querySelectorAll('button[data-del]').forEach(b=>b.addEventListener('click', e=>{ const i=b.dataset.del; saved.splice(i,1); localStorage.setItem('stranger_saved_v1', JSON.stringify(saved)); refreshSaved(); }));
 }
-document.getElementById('saveWord').addEventListener('click', ()=>{
-  const w = document.getElementById('saveInput').value.toUpperCase().trim();
-  if (!w) return alert('Enter a word');
-  saved.unshift(w); saved = Array.from(new Set(saved)).slice(0,30); localStorage.setItem('stranger_saved_v1', JSON.stringify(saved)); refreshSaved();
-});
+function deleteWord(i){
+  saved.splice(i,1);
+  localStorage.setItem("savedWords", JSON.stringify(saved));
+  refreshSaved();
+}
+
+document.getElementById("saveWord").onclick = ()=>{
+  const v = document.getElementById("saveInput").value.toUpperCase().replace(/[^A-Z]/g,'');
+  if (!v) return;
+  saved.unshift(v);
+  saved = [...new Set(saved)]; // remove duplicates
+  localStorage.setItem("savedWords", JSON.stringify(saved));
+  refreshSaved();
+};
+
 refreshSaved();
 </script>
 </body>
