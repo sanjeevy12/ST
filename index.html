@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Stranger Lights — Viewer</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#0b0b0b;color:#eee;padding:18px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{text-align:center}
+  .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:10px;justify-items:center;margin-top:18px}
+  .cell{width:64px;height:64px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;transition:all .12s}
+  .cell.on{background:#ff3b3b;transform:scale(1.07);box-shadow:0 12px 32px rgba(255,59,59,.14)}
+  .letter{font-weight:700;color:#111}
+  .status{display:flex;gap:12px;justify-content:center;margin-top:12px;color:#aaa}
+  .small{font-size:13px;color:#bbb}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stranger Lights — Viewer (Mirror)</h1>
+  <div class="status">
+    <div class="small" id="modeText">Mode: —</div>
+    <div class="small">Speed: <span id="speedText">—</span> ms</div>
+    <div class="small">Word: <span id="wordText">—</span></div>
+    <div class="small">Updated: <span id="tsText">—</span></div>
+  </div>
+
+  <div id="board" class="grid"></div>
+  <p class="small" style="text-align:center;margin-top:18px">Page listens to Firebase `/state` and shows live LEDs.</p>
+</div>
+
+<!-- Firebase compatibility libs -->
+<script src="https://www.gstatic.com/firebasejs/9.32.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.32.0/firebase-database-compat.js"></script>
+
+<script>
+// ======= REPLACE WITH YOUR FIREBASE CONFIG =======
+const firebaseConfig = {
+  apiKey: "REPLACE_APIKEY",
+  authDomain: "REPLACE.firebaseapp.com",
+  databaseURL: "https://REPLACE.firebaseio.com",
+  projectId: "REPLACE",
+  storageBucket: "REPLACE.appspot.com",
+  messagingSenderId: "REPLACE",
+  appId: "REPLACE"
+};
+// =================================================
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// build 26-letter board A..Z
+const board = document.getElementById('board');
+const letters = [];
+for (let i = 0; i < 26; ++i) {
+  const ch = String.fromCharCode(65 + i);
+  const cell = document.createElement('div');
+  cell.className = 'cell'; cell.id = 'L' + ch;
+  const span = document.createElement('div'); span.className='letter'; span.textContent = ch;
+  cell.appendChild(span); board.appendChild(cell);
+  letters.push(cell);
+}
+function setOn(idx, on){ if (letters[idx]) letters[idx].classList.toggle('on', !!on); }
+
+// status elements
+const modeText = document.getElementById('modeText');
+const speedText = document.getElementById('speedText');
+const wordText = document.getElementById('wordText');
+const tsText = document.getElementById('tsText');
+
+// subscribe to /state
+const stateRef = db.ref('/state');
+stateRef.on('value', snap => {
+  const s = snap.val();
+  if (!s) return;
+  const mode = s.mode ?? -1;
+  const speed = s.speed ?? 0;
+  const word = s.word ?? '';
+  const ts = s.timestamp ?? Date.now();
+  const modeNames = {0:'All Blink',1:'Random',2:'Custom Word',3:'Scroll'};
+  modeText.textContent = 'Mode: ' + (modeNames[mode] ?? mode);
+  speedText.textContent = speed;
+  wordText.textContent = word || '—';
+  tsText.textContent = new Date(ts).toLocaleTimeString();
+
+  // if a mask provided, use mask
+  if (typeof s.mask !== 'undefined' && s.mask !== null) {
+    const mask = Number(s.mask) >>> 0;
+    for (let i=0;i<26;i++) setOn(i, (mask & (1<<i))!==0);
+    return;
+  }
+
+  // else if currentIndex present
+  if (typeof s.currentIndex !== 'undefined' && s.currentIndex !== null) {
+    for (let i=0;i<26;i++) setOn(i, false);
+    const idx = Number(s.currentIndex);
+    if (idx >=0 && idx<26) setOn(idx, true);
+    return;
+  }
+
+  // fallback: clear
+  for (let i=0;i<26;i++) setOn(i,false);
+});
+</script>
+</body>
+</html>
