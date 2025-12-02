@@ -14,11 +14,18 @@
   .preview{display:grid;grid-template-columns:repeat(10,56px);gap:8px;justify-content:center;margin-top:10px}
   .preview .cell{width:48px;height:48px;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;border-radius:6px}
   .saved-list{max-height:160px;overflow:auto;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px}
+  nav{display:flex;justify-content:center;gap:12px;margin-bottom:8px}
+  nav a{color:#9fe;text-decoration:none}
 </style>
 </head>
 <body>
+<nav>
+  <a href="/ST/index.html" target="_blank">Viewer</a>
+  <a href="/ST/controller.html" target="_blank">Controller</a>
+</nav>
+
 <div class="wrap">
-  <h1>Stranger Lights — Controller (Emulator)</h1>
+  <h1>Stranger Lights — Controller</h1>
 
   <div class="controls">
     <select id="modeSel">
@@ -37,7 +44,7 @@
     <button id="pushInstant">Push Now</button>
   </div>
 
-  <div class="info">This page writes <b>/state</b> to Firebase. Open <b>viewer.html</b> to watch live.</div>
+  <div class="info">This page writes <b>/state</b> to your Firebase Realtime Database. Open <b>Viewer</b> to watch the mirror live.</div>
 
   <div style="margin-top:14px">
     <label>Preview</label>
@@ -54,26 +61,25 @@
   </div>
 </div>
 
-<!-- Firebase libs -->
+<!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.32.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.32.0/firebase-database-compat.js"></script>
 
 <script>
-// ===== REAL FIREBASE CONFIG (WORKING) =====
+// ===== FIREBASE CONFIG (stranger-things-ce82d) =====
 const firebaseConfig = {
-  apiKey: "AIzaSyC5DEtnD9UThmAblQ1iF5YXQypXtfVCp_s",
-  authDomain: "stranger-things-c37aa.firebaseapp.com",
-  databaseURL: "https://stranger-things-c37aa-default-rtdb.firebaseio.com",
-  projectId: "stranger-things-c37aa",
-  storageBucket: "stranger-things-c37aa.appspot.com",
-  messagingSenderId: "841392728122",
-  appId: "1:841392728122:web:64dd307f50769d03eb6d03",
-  measurementId: "G-278D2DZNSB"
+  apiKey: "AIzaSyAfPaTHjXVbvduLyNCpKkA5gD6QYzn-56c",
+  authDomain: "stranger-things-ce82d.firebaseapp.com",
+  databaseURL: "https://stranger-things-ce82d-default-rtdb.firebaseio.com",
+  projectId: "stranger-things-ce82d",
+  storageBucket: "stranger-things-ce82d.appspot.com",
+  messagingSenderId: "855730758180",
+  appId: "1:855730758180:web:08558e3ce2011336996eb1"
 };
-// =========================================
+// ===================================================
 
 firebase.initializeApp(firebaseConfig);
-console.log("Firebase initialized");
+console.log("Firebase initialized (controller)", firebaseConfig.projectId);
 
 const db = firebase.database();
 const stateRef = db.ref("/state");
@@ -90,16 +96,16 @@ for (let i=0;i<26;i++){
 }
 
 function clearPreview(){ previewCells.forEach(c=>c.style.background='#111'); }
-function setPreviewIndex(i){ clearPreview(); if (i>=0) previewCells[i].style.background='#ff4b4b'; }
+function setPreviewIndex(i){ clearPreview(); if (i>=0 && i<26) previewCells[i].style.background='#ff4b4b'; }
 function setPreviewMask(mask){
-  for(let i=0;i<26;i++) previewCells[i].style.background = (mask & (1<<i)) ? '#ff4b4b':'#111';
+  for(let i=0;i<26;i++) previewCells[i].style.background = (mask & (1<<i)) ? '#ff4b4b' : '#111';
 }
 
 function pushState(obj){
   obj.timestamp = Date.now();
-  stateRef.set(obj).then(()=>{
-    console.log("State Updated:", obj);
-  }).catch(e=>console.error(e));
+  stateRef.set(obj)
+    .then(()=> console.log("State pushed:", obj))
+    .catch(e=> console.error("Push failed:", e));
 }
 
 // Controller logic
@@ -110,42 +116,38 @@ let curIdx=0;
 function stepOnce(){
   const mode = Number(document.getElementById("modeSel").value);
   const speed = Number(document.getElementById("speed").value) || 300;
-  const word = document.getElementById("word").value.toUpperCase().replace(/[^A-Z]/g,'');
+  const word = (document.getElementById("word").value||'').toUpperCase().replace(/[^A-Z ]/g,'').trim();
 
-  // All Blink
   if (mode === 0){
     const mask = (curIdx % 2 === 0) ? ((1<<26)-1) : 0;
     setPreviewMask(mask);
-    pushState({mode, speed, mask, word});
+    pushState({ mode, speed, mask, word });
     curIdx++;
     return;
   }
 
-  // Random
   if (mode === 1){
     let mask = 0;
-    for (let i=0;i<26;i++) if (Math.random() < 0.3) mask |= (1<<i);
+    for (let i=0;i<26;i++) if (Math.random() < 0.35) mask |= (1<<i);
     setPreviewMask(mask);
-    pushState({mode, speed, mask, word});
+    pushState({ mode, speed, mask, word });
     return;
   }
 
-  // Custom Word
   if (mode === 2){
-    if (!word){ pushState({mode, speed, currentIndex:-1, word}); return; }
+    if (!word){ pushState({ mode, speed, currentIndex:-1, word: '' }); return; }
     const idx = word[curIdx % word.length].charCodeAt(0) - 65;
     setPreviewIndex(idx);
-    pushState({mode, speed, currentIndex:idx, word});
+    pushState({ mode, speed, currentIndex: idx, word });
     curIdx++;
     return;
   }
 
-  // Scroll
   if (mode === 3){
-    if (!word){ pushState({mode, speed, currentIndex:-1, word}); return; }
+    if (!word){ pushState({ mode, speed, currentIndex:-1, word: '' }); return; }
     const idx = word[curIdx % word.length].charCodeAt(0) - 65;
     setPreviewIndex(idx);
-    pushState({mode, speed, currentIndex:idx, word});
+    pushState({ mode, speed, currentIndex: idx, word });
     curIdx++;
     return;
   }
@@ -153,53 +155,59 @@ function stepOnce(){
 
 function startLoop(){
   if (running) return;
-  running = true;
-  curIdx = 0;
-  function run(){
+  running = true; curIdx = 0;
+  (function run(){
     if (!running) return;
     stepOnce();
-    loopTimer = setTimeout(run, Number(document.getElementById("speed").value));
-  }
-  run();
+    loopTimer = setTimeout(run, Math.max(40, Number(document.getElementById("speed").value) || 300));
+  })();
 }
 
-document.getElementById("startBtn").onclick = startLoop;
-document.getElementById("stopBtn").onclick = ()=>{ running=false; clearTimeout(loopTimer); };
-document.getElementById("pushInstant").onclick = stepOnce;
+function stopLoop(){
+  running = false;
+  if (loopTimer) clearTimeout(loopTimer);
+}
+
+document.getElementById("startBtn").addEventListener('click', startLoop);
+document.getElementById("stopBtn").addEventListener('click', stopLoop);
+document.getElementById("pushInstant").addEventListener('click', stepOnce);
 
 // Saved words
 const savedList = document.getElementById('savedList');
-let saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+let saved = JSON.parse(localStorage.getItem("stranger_saved_v1") || "[]");
 
 function refreshSaved(){
   savedList.innerHTML = "";
   saved.forEach((w,i)=>{
     const div = document.createElement("div");
-    div.innerHTML = `<div style="display:flex;justify-content:space-between;">
-      <span>${w}</span>
+    div.style.display = 'flex';
+    div.style.justifyContent = 'space-between';
+    div.style.alignItems = 'center';
+    div.style.marginBottom = '6px';
+    div.innerHTML = `<span>${w}</span>
       <span>
-        <button onclick="wordEl.value='${w}'">Use</button>
-        <button onclick="deleteWord(${i})">Delete</button>
-      </span></div>`;
+        <button data-use="${i}">Use</button>
+        <button data-del="${i}">Del</button>
+      </span>`;
     savedList.appendChild(div);
   });
+  savedList.querySelectorAll('button[data-use]').forEach(b=>{
+    b.addEventListener('click', e=> { const i = Number(b.dataset.use); document.getElementById('word').value = saved[i]; });
+  });
+  savedList.querySelectorAll('button[data-del]').forEach(b=>{
+    b.addEventListener('click', e=> { const i = Number(b.dataset.del); saved.splice(i,1); localStorage.setItem('stranger_saved_v1', JSON.stringify(saved)); refreshSaved(); });
+  });
 }
-function deleteWord(i){
-  saved.splice(i,1);
-  localStorage.setItem("savedWords", JSON.stringify(saved));
-  refreshSaved();
-}
-
-document.getElementById("saveWord").onclick = ()=>{
-  const v = document.getElementById("saveInput").value.toUpperCase().replace(/[^A-Z]/g,'');
-  if (!v) return;
+document.getElementById('saveWord').addEventListener('click', ()=>{
+  const v = (document.getElementById('saveInput').value||'').toUpperCase().replace(/[^A-Z ]/g,'').trim();
+  if (!v) return alert('Enter a word');
   saved.unshift(v);
-  saved = [...new Set(saved)]; // remove duplicates
-  localStorage.setItem("savedWords", JSON.stringify(saved));
+  saved = Array.from(new Set(saved)).slice(0,30);
+  localStorage.setItem('stranger_saved_v1', JSON.stringify(saved));
   refreshSaved();
-};
-
+});
 refreshSaved();
+
 </script>
 </body>
 </html>
